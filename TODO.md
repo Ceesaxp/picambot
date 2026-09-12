@@ -8,10 +8,10 @@
 - [x] M4 — Recording: /record N wired; MP4 sent; range validation
 - [x] M5 — Detection: /detect /stopdetect; EventWatcher; crash recovery
 - [x] M6 — Hardening: unit + integration tests; AGENTS.md
+- [x] Deploy to Raspberry Pi 4 and run manual acceptance tests (spec §8.3)
+- [x] Configure systemd units and sudoers rule (spec §7.2–7.3)
+- [x] Configure motion.conf (spec §6.5)
+- [x] Address open questions from spec §9 (clip retention, Telegram file size, crash recovery messaging, /stream command)
+- [x] Add HomeKit integration
 
 ## Remaining
-
-- [ ] Deploy to Raspberry Pi 4 and run manual acceptance tests (spec §8.3)
-- [ ] Configure systemd units and sudoers rule (spec §7.2–7.3)
-- [ ] Configure motion.conf (spec §6.5)
-- [ ] Address open questions from spec §9 (clip retention, Telegram file size, crash recovery messaging, /stream command)
