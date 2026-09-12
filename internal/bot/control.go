@@ -50,7 +50,15 @@ func (b *Bot) startCamera(ctx context.Context) error {
 		return state.ErrInvalidTransition
 	}
 	if err := b.motion.Start(ctx); err != nil {
-		return fmt.Errorf("start camera: %w", err)
+		// Start may have launched the daemon before its readiness check failed.
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		stopErr := b.motion.Stop(cleanupCtx)
+		if stopErr != nil {
+			// Keep Off retryable when shutdown could not be confirmed.
+			b.fsm.Set(state.StateMonitoring)
+		}
+		return errors.Join(fmt.Errorf("start camera: %w", err), stopErr, b.persistState())
 	}
 	b.fsm.Set(state.StateMonitoring)
 	return b.persistState()
@@ -65,7 +73,12 @@ func (b *Bot) stopCamera(ctx context.Context) error {
 	if b.recordCancel != nil {
 		b.recordCancel()
 		if b.recordDone != nil {
-			<-b.recordDone
+			select {
+			case <-b.recordDone:
+			case <-ctx.Done():
+				b.recordMu.Unlock()
+				return ctx.Err()
+			}
 		}
 		b.recordCancel = nil
 		b.fsm.Set(state.StateMonitoring)
@@ -123,22 +136,22 @@ func (b *Bot) persistState() error {
 func (b *Bot) Recover(ctx context.Context) error {
 	b.controlMu.Lock()
 	defer b.controlMu.Unlock()
-	switch b.fsm.Current() {
-	case state.StateDetecting:
-		b.fsm.Set(state.StateMonitoring)
-		if err := b.motion.Start(ctx); err != nil {
-			b.fsm.Set(state.StateSleep)
-			return errors.Join(err, b.persistState())
-		}
+	initial := b.fsm.Current()
+	if initial == state.StateSleep {
+		return nil
+	}
+	// systemctl start is idempotent and also restores a camera after a Pi reboot.
+	b.fsm.Set(state.StateSleep)
+	if err := b.startCamera(ctx); err != nil {
+		return err
+	}
+	if initial == state.StateDetecting {
 		if err := b.enableDetection(ctx); err != nil {
 			cleanupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 			return errors.Join(err, b.stopCamera(cleanupCtx))
 		}
-	case state.StateRecording:
-		// A recording goroutine cannot survive a process restart.
-		b.fsm.Set(state.StateMonitoring)
-		return b.persistState()
 	}
+	// Persisted recordings return to monitoring; their goroutine no longer exists.
 	return nil
 }

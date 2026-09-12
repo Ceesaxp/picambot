@@ -60,7 +60,7 @@ To enable it, add these settings to `/etc/picambot/env`:
 ```ini
 HOMEKIT_ENABLED=true
 HOMEKIT_PIN=<your eight-digit pairing code>
-HOMEKIT_NAME=Camera monitoring
+HOMEKIT_NAME="Camera monitoring"
 ```
 
 Choose eight digits without separators; repeated digits and `12345678` / `87654321` are rejected. Restart `picambot`, then use **Home → Add Accessory → More Options**, select **Camera monitoring**, and enter your pairing code. Accept the uncertified-accessory prompt if shown.

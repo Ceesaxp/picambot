@@ -2,11 +2,13 @@ module picambot
 
 go 1.24.6
 
-require github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1
+require (
+	github.com/brutella/hap v0.0.35
+	github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1
+)
 
 require (
 	github.com/brutella/dnssd v1.2.14 // indirect
-	github.com/brutella/hap v0.0.35 // indirect
 	github.com/go-chi/chi v1.5.4 // indirect
 	github.com/miekg/dns v1.1.61 // indirect
 	github.com/tadglines/go-pkgs v0.0.0-20210623144937-b983b20f54f9 // indirect

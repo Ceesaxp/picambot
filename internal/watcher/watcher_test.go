@@ -92,3 +92,36 @@ func TestFIFOWatcher_IgnoresUnknownExtensions(t *testing.T) {
 		// correct — nothing emitted
 	}
 }
+
+func TestFIFOWatcher_StopAndRestart(t *testing.T) {
+	fifoPath := filepath.Join(t.TempDir(), "events.fifo")
+	for i := 0; i < 5; i++ {
+		fw, err := NewFIFOWatcher(fifoPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		out := make(chan WatchEvent, 1)
+		if err := fw.Watch("", out); err != nil {
+			t.Fatal(err)
+		}
+		f, err := os.OpenFile(fifoPath, os.O_WRONLY, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = f.WriteString("motion.jpg\n")
+		f.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case <-out:
+		case <-time.After(time.Second):
+			t.Fatal("restarted watcher lost event")
+		}
+		fw.Stop()
+		fw.Stop()
+		if _, err := fw.file.Stat(); err == nil {
+			t.Fatal("stopped watcher retained descriptor")
+		}
+	}
+}

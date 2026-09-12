@@ -21,7 +21,7 @@ func New(bot *tgbotapi.BotAPI, chatID int64) *Sender {
 	return s
 }
 
-// SetChatID updates the target chat. Safe to call before the first send.
+// SetChatID updates the target chat. Safe to call concurrently with sends.
 func (s *Sender) SetChatID(id int64) {
 	s.chatID.Store(id)
 }

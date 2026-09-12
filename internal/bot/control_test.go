@@ -147,7 +147,7 @@ func TestMonitoringFailuresRemainRetryable(t *testing.T) {
 	})
 	t.Run("watcher", func(t *testing.T) {
 		b, mc := newControlBot(t, state.StateMonitoring)
-				// A regular parent file cannot contain a FIFO.
+		// A regular parent file cannot contain a FIFO.
 		b.fifoPath = filepath.Join(b.targetDir, "state.json", "events.fifo")
 		if err := b.persistState(); err != nil {
 			t.Fatal(err)
@@ -191,5 +191,40 @@ func TestConcurrentMonitoringCommands(t *testing.T) {
 	st, _, err := b.store.Load()
 	if err != nil || st != state.StateSleep {
 		t.Fatalf("state: %s %v", st, err)
+	}
+}
+
+func TestMonitoringPersistenceFailure(t *testing.T) {
+	b, _ := newControlBot(t, state.StateSleep)
+	// Use a real store whose parent is a regular file.
+	if err := b.persistState(); err != nil {
+		t.Fatal(err)
+	}
+	b.store = state.NewPersistentStateStore(filepath.Join(b.targetDir, "state.json", "bad.json"))
+	if err := b.SetMonitoring(context.Background(), true); err == nil {
+		t.Fatal("persistence failure silently accepted")
+	}
+	if b.fsm.Current() != state.StateMonitoring {
+		t.Fatal("hardware state lost on save error")
+	}
+}
+
+func TestRecoverMonitoring(t *testing.T) {
+	for _, initial := range []state.State{state.StateSleep, state.StateMonitoring, state.StateDetecting, state.StateRecording} {
+		t.Run(string(initial), func(t *testing.T) {
+			b, mc := newControlBot(t, initial)
+			if err := b.Recover(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			if b.Monitoring() != (initial == state.StateDetecting) {
+				t.Fatal("incorrect recovered switch state")
+			}
+			if initial != state.StateSleep && mc.start != 1 {
+				t.Fatal("camera not restored after restart")
+			}
+			if initial == state.StateRecording && b.fsm.Current() != state.StateMonitoring {
+				t.Fatal("stale recording state")
+			}
+		})
 	}
 }

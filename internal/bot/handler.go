@@ -15,6 +15,9 @@ import (
 )
 
 func (b *Bot) handleStart(ctx context.Context, msg *tgbotapi.Message) {
+	if msg.Chat.ID != 0 {
+		b.sender.SetChatID(msg.Chat.ID)
+	}
 	if err := b.startCamera(ctx); err != nil {
 		b.logger.Error("camera start failed", "err", err)
 		b.reply(ctx, "❌ Cannot start camera: "+err.Error())
@@ -24,6 +27,9 @@ func (b *Bot) handleStart(ctx context.Context, msg *tgbotapi.Message) {
 }
 
 func (b *Bot) handleStop(ctx context.Context, msg *tgbotapi.Message) {
+	if msg.Chat.ID != 0 {
+		b.sender.SetChatID(msg.Chat.ID)
+	}
 	if err := b.stopCamera(ctx); err != nil {
 		b.logger.Error("camera stop failed", "err", err)
 		b.reply(ctx, "❌ Cannot stop camera: "+err.Error())
@@ -70,7 +76,7 @@ func (b *Bot) handleRecord(ctx context.Context, msg *tgbotapi.Message) {
 		b.reply(ctx, "Cannot record right now.")
 		return
 	}
-	b.saveState(ctx, state.StateRecording, msg.Chat.ID)
+	b.saveState(msg.Chat.ID)
 
 	recordCtx, cancel := context.WithCancel(ctx)
 	b.recordMu.Lock()
@@ -92,7 +98,7 @@ func (b *Bot) handleRecord(ctx context.Context, msg *tgbotapi.Message) {
 		b.recordCancel = nil
 		b.recordMu.Unlock()
 		b.fsm.Set(state.StateMonitoring)
-		b.saveState(ctx, state.StateMonitoring, msg.Chat.ID)
+		b.saveState(msg.Chat.ID)
 		b.controlMu.Unlock()
 		if err != nil {
 			if err == motion.ErrOutOfRange {
@@ -123,6 +129,9 @@ func (b *Bot) handleRecord(ctx context.Context, msg *tgbotapi.Message) {
 }
 
 func (b *Bot) handleDetect(ctx context.Context, msg *tgbotapi.Message) {
+	if msg.Chat.ID != 0 {
+		b.sender.SetChatID(msg.Chat.ID)
+	}
 	if err := b.enableDetection(ctx); err != nil {
 		b.logger.Error("detection start failed", "err", err)
 		b.reply(ctx, "❌ Cannot enable detection: "+err.Error())
@@ -132,6 +141,9 @@ func (b *Bot) handleDetect(ctx context.Context, msg *tgbotapi.Message) {
 }
 
 func (b *Bot) handleStopDetect(ctx context.Context, msg *tgbotapi.Message) {
+	if msg.Chat.ID != 0 {
+		b.sender.SetChatID(msg.Chat.ID)
+	}
 	if err := b.disableDetection(ctx); err != nil {
 		b.logger.Error("detection pause failed", "err", err)
 		b.reply(ctx, "❌ Cannot disable detection: "+err.Error())
@@ -177,7 +189,7 @@ func (b *Bot) reply(ctx context.Context, text string) {
 	}
 }
 
-func (b *Bot) saveState(ctx context.Context, s state.State, chatID int64) {
+func (b *Bot) saveState(chatID int64) {
 	if chatID != 0 {
 		b.sender.SetChatID(chatID)
 	}
