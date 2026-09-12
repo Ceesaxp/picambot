@@ -1,0 +1,55 @@
+#!/bin/sh
+# picambot-audio-start — launched by motion's on_event_start hook.
+#
+# Deploy to: /usr/local/bin/picambot-audio-start  (chmod 755)
+# motion.conf:
+#   on_event_start /usr/local/bin/picambot-audio-start %Y%m%d%H%M%S-%v
+#
+# Records audio from the USB webcam mic for the duration of a motion event.
+# The companion picambot-audio-stop script kills this arecord and renames
+# the .wav so it sits next to the .mp4 that motion writes for the same event.
+# The bot's Go muxer then combines them into <basename>.av.mp4 before sending
+# to Telegram.
+
+set -e
+
+# ── Configuration ─────────────────────────────────────────────────────────────
+# Stable ALSA device name (use `arecord -L` to find it). Prefer CARD=… over
+# numeric indices so the device survives reboots and unrelated USB plug events.
+AUDIO_DEVICE="${AUDIO_DEVICE:-plughw:CARD=C920,DEV=0}"
+AUDIO_RATE="${AUDIO_RATE:-48000}"
+AUDIO_CHANNELS="${AUDIO_CHANNELS:-2}"
+
+ARECORD="${ARECORD:-/usr/bin/arecord}"
+TARGET_DIR="${TARGET_DIR:-/var/lib/motion}"
+STATE_DIR="${STATE_DIR:-/var/lib/picambot}"
+
+# Uncomment to capture stdout/stderr to a log file for debugging.
+#exec >> /var/log/picambot-hooks.log 2>&1
+#set -x
+#date "+--- start %F %T ---"
+
+# ── Body ──────────────────────────────────────────────────────────────────────
+BASENAME="$1"
+if [ -z "$BASENAME" ]; then
+    echo "picambot-audio-start: missing basename argument" >&2
+    exit 1
+fi
+
+mkdir -p "$STATE_DIR"
+
+# Hint for the stop hook about which mp4 motion will produce. Used only as a
+# fallback if the %v-based lookup in the stop hook fails to locate a clip.
+echo "$TARGET_DIR/$BASENAME.mp4" > "$STATE_DIR/current-clip.path"
+
+# Detach stdin/stdout so arecord survives the hook's parent shell exit.
+"$ARECORD" \
+    -q \
+    -D "$AUDIO_DEVICE" \
+    -f S16_LE \
+    -r "$AUDIO_RATE" \
+    -c "$AUDIO_CHANNELS" \
+    "$TARGET_DIR/$BASENAME.wav" \
+    </dev/null >/dev/null 2>&1 &
+
+echo $! > "$STATE_DIR/arecord.pid"

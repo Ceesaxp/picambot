@@ -1,0 +1,87 @@
+#!/bin/sh
+# picambot-audio-stop — launched by motion's on_event_end hook.
+#
+# Deploy to: /usr/local/bin/picambot-audio-stop  (chmod 755)
+# motion.conf:
+#   on_event_end /usr/local/bin/picambot-audio-stop %v
+#
+# Responsibilities:
+#   1. Stop the arecord process started by picambot-audio-start.
+#   2. Rename the .wav so its basename matches the .mp4 motion wrote for the
+#      same event (basenames can drift by ±1 second because motion evaluates
+#      movie_filename when it opens the file, not at on_event_start time).
+#   3. Announce the .mp4 path on the FIFO so the bot picks it up.
+#
+# The bot's Go muxer (internal/audio) will then pair <basename>.mp4 with
+# <basename>.wav into <basename>.av.mp4 before sending to Telegram.
+
+# Note: no `set -e` here — we want to push through individual failures so a
+# missing PID file doesn't prevent the FIFO announcement, and vice versa.
+
+# ── Configuration ─────────────────────────────────────────────────────────────
+TARGET_DIR="${TARGET_DIR:-/var/lib/motion}"
+STATE_DIR="${STATE_DIR:-/var/lib/picambot}"
+FIFO="${FIFO:-$STATE_DIR/events.fifo}"
+KILL_WAIT_TENTHS="${KILL_WAIT_TENTHS:-50}"   # 50 × 0.1s = 5s
+FIFO_TIMEOUT="${FIFO_TIMEOUT:-1}"            # seconds before giving up on FIFO
+
+# Uncomment to capture stdout/stderr to a log file for debugging.
+#exec >> /var/log/picambot-hooks.log 2>&1
+#set -x
+#date "+--- stop %F %T ---"
+
+# ── Body ──────────────────────────────────────────────────────────────────────
+V="$1"
+PIDFILE="$STATE_DIR/arecord.pid"
+CLIPFILE="$STATE_DIR/current-clip.path"
+
+# 1. Stop arecord — TERM first so it writes the WAV header, KILL if it lingers.
+if [ -f "$PIDFILE" ]; then
+    PID=$(cat "$PIDFILE")
+    if [ -n "$PID" ] && kill -0 "$PID" 2>/dev/null; then
+        kill -TERM "$PID" 2>/dev/null
+        i=0
+        while kill -0 "$PID" 2>/dev/null && [ "$i" -lt "$KILL_WAIT_TENTHS" ]; do
+            sleep 0.1
+            i=$((i + 1))
+        done
+        kill -KILL "$PID" 2>/dev/null
+    fi
+    rm -f "$PIDFILE"
+fi
+
+# 2. Find the mp4 motion wrote for this event. Prefer matching by %v suffix
+#    (set by movie_filename %Y%m%d%H%M%S-%v), fall back to the path the start
+#    hook stashed if globbing fails.
+CLIP=""
+if [ -n "$V" ]; then
+    CLIP=$(ls -1t "$TARGET_DIR"/*-"$V".mp4 2>/dev/null | head -n 1)
+fi
+if [ -z "$CLIP" ] && [ -f "$CLIPFILE" ]; then
+    CANDIDATE=$(cat "$CLIPFILE")
+    [ -f "$CANDIDATE" ] && CLIP="$CANDIDATE"
+fi
+rm -f "$CLIPFILE"
+
+if [ -z "$CLIP" ] || [ ! -f "$CLIP" ]; then
+    # No clip — nothing to mux or announce. (Common when motion's
+    # minimum_motion_frames threshold isn't met for a brief flicker.)
+    exit 0
+fi
+
+# 3. Align the wav basename with the mp4 basename so the Go muxer's sibling
+#    lookup finds it. Match wavs by the same -%v suffix.
+MP4_BASE=$(basename "$CLIP" .mp4)
+if [ -n "$V" ]; then
+    for w in "$TARGET_DIR"/*-"$V".wav; do
+        [ -f "$w" ] || continue
+        if [ "$(basename "$w" .wav)" != "$MP4_BASE" ]; then
+            mv -f "$w" "$TARGET_DIR/$MP4_BASE.wav"
+        fi
+        break
+    done
+fi
+
+# 4. Announce on the FIFO. `timeout` prevents hanging if no reader is attached
+#    (e.g. /record outside detect mode, or the bot is briefly restarting).
+timeout "$FIFO_TIMEOUT" sh -c "echo \"$CLIP\" > \"$FIFO\"" 2>/dev/null || true

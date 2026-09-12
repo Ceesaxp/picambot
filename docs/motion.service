@@ -1,0 +1,16 @@
+[Unit]
+Description=motion camera daemon
+# Do NOT add [Install] / WantedBy — this unit is started and stopped on demand
+# by picambot via "sudo systemctl start|stop motion". Enabling it at boot would
+# leave the camera running when the bot is not active.
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/motion -c /etc/motion/motion.conf
+# Restart on failure only (not on clean stop, which is how the bot stops it).
+Restart=on-failure
+RestartSec=3
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=motion

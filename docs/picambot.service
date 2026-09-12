@@ -1,0 +1,52 @@
+[Unit]
+Description=PiCam Telegram Bot
+Documentation=https://github.com/Ceesaxp/picambot
+# Wait for the network and Tailscale to be up before starting.
+# The bot polls Telegram over Tailscale, so both are required.
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+# motion.service is NOT listed here — the bot starts and stops it on demand.
+
+[Service]
+# ── Identity ──────────────────────────────────────────────────────────────────
+# Run as a dedicated low-privilege user. Create with:
+#   sudo useradd --system --no-create-home picambot
+#   sudo usermod -aG video picambot   # access /dev/video0
+User=picambot
+Group=picambot
+
+# ── Environment ───────────────────────────────────────────────────────────────
+# All configuration is via environment variables. See env.example for the full
+# list. This file must be chmod 600 and owned by root (or the service user).
+EnvironmentFile=/etc/picambot/env
+
+# ── Execution ─────────────────────────────────────────────────────────────────
+ExecStart=/usr/local/bin/picambot
+
+# ── Restart policy ────────────────────────────────────────────────────────────
+# Restart on any non-clean exit. The FSM state is persisted to STATE_FILE so
+# the bot resumes correctly after a crash or reboot.
+Restart=always
+RestartSec=5
+
+# ── Logging ───────────────────────────────────────────────────────────────────
+# The bot writes JSON logs to stdout; journald captures them automatically.
+# View with: journalctl -u picambot -f
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=picambot
+
+# ── Hardening ─────────────────────────────────────────────────────────────────
+# PrivateTmp=, ProtectSystem=, and ProtectHome= all implicitly set the kernel
+# no_new_privs flag in systemd v254+ (current Raspberry Pi OS). That flag
+# prevents sudo from elevating to root, which breaks "sudo systemctl
+# start/stop motion". They are intentionally omitted here.
+#
+# Security is enforced instead by:
+#   • Running as the unprivileged "picambot" system user
+#   • /etc/sudoers.d/picambot pinning exactly two allowed commands
+#   • No public network exposure (Motion via Tailscale; optional HomeKit on LAN)
+
+[Install]
+WantedBy=multi-user.target

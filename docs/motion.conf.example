@@ -1,0 +1,92 @@
+# motion.conf — example configuration for picambot
+# ─────────────────────────────────────────────────────────────────────────────
+# Deploy to: /etc/motion/motion.conf
+#
+# This file configures the motion daemon to work with picambot. Key points:
+#   • The bot starts and stops the daemon via systemctl — do NOT enable
+#     motion.service at boot (WantedBy= is intentionally absent).
+#   • The webcontrol API is bound to the Tailscale IP so it is reachable
+#     from the bot but not from the public internet.
+#   • Detection starts paused (pause=on); the bot resumes it via webcontrol
+#     when the operator sends /detect.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Camera input ──────────────────────────────────────────────────────────────
+videodevice /dev/video0
+width 1280
+height 720
+framerate 30
+
+# ── Webcontrol API ────────────────────────────────────────────────────────────
+# Bind to the Tailscale IP (replace 100.x.x.x with your actual Tailscale IP).
+# The bot reads MOTION_HOST / MOTION_PORT to find this endpoint.
+webcontrol_localhost off
+webcontrol_ip 100.x.x.x
+webcontrol_port 7999
+
+# Allow all webcontrol commands (required for snapshot, record, detection toggle).
+webcontrol_parms 2
+
+# ── Live stream (optional, Tailscale only) ────────────────────────────────────
+stream_localhost off
+stream_ip 100.x.x.x
+stream_port 8081
+stream_quality 50
+stream_maxrate 5
+
+# ── Output files ──────────────────────────────────────────────────────────────
+# The bot watches this directory for new *.jpg and *.mp4 files.
+# Must match MOTION_TARGET_DIR in /etc/picambot/env.
+target_dir /var/lib/motion
+
+# Save the best frame from each motion event as a JPEG.
+output_pictures best
+
+# Save a video clip for each motion event.
+ffmpeg_output_movies on
+ffmpeg_video_codec mp4
+
+# Movie filename must use the %Y%m%d%H%M%S-%v pattern so the audio hooks can
+# pair the .wav arecord writes with the .mp4 motion writes for the same event.
+# Changing this breaks audio muxing — see docs/picambot-audio-start.
+movie_filename %Y%m%d%H%M%S-%v
+
+# ── Event hooks ───────────────────────────────────────────────────────────────
+# Audio capture: arecord runs for the duration of each motion event, and the
+# stop hook renames the resulting .wav to share the mp4's basename and pushes
+# the mp4 path onto the FIFO. The bot's Go muxer then produces <basename>.av.mp4.
+# See docs/picambot-audio-{start,stop} for the scripts (deploy to /usr/local/bin).
+on_event_start /usr/local/bin/picambot-audio-start %Y%m%d%H%M%S-%v
+on_event_end   /usr/local/bin/picambot-audio-stop  %v
+
+# Snapshot best-frame JPEGs are announced directly to the bot via the FIFO —
+# they have no audio, so they bypass the audio hooks entirely.
+on_picture_save echo %f > /var/lib/picambot/events.fifo
+
+# ── Detection behaviour ───────────────────────────────────────────────────────
+# Start paused — the bot enables detection via webcontrol when /detect is sent.
+# Without this, motion would start detecting immediately on daemon start,
+# which conflicts with the bot's state machine.
+pause on
+
+# Minimum number of pixels that must change to count as motion.
+threshold 1500
+
+# Require 3 consecutive frames with motion to avoid false triggers.
+minimum_motion_frames 3
+
+# Seconds of no motion before an event is considered ended.
+# Lower values mean clips are delivered sooner; higher values merge
+# nearby bursts of motion into a single clip.
+event_gap 10
+
+# Frames to buffer before motion is detected (pre-roll).
+pre_capture 3
+
+# Seconds of post-motion recording to append to each clip.
+post_capture 5
+
+# ── Logging ───────────────────────────────────────────────────────────────────
+# Log to file so motion output does not interfere with the bot's JSON logs.
+log_file /var/log/motion/motion.log
+log_level 6
