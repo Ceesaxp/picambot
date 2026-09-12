@@ -174,6 +174,7 @@ picambot/
 │   ├── motion/      # MotionClient (HTTP) + systemctl wrapper
 │   ├── watcher/     # EventWatcher (fsnotify)
 │   └── notify/      # Telegram send helpers
+├── scripts/        # Deployable audio hook scripts
 └── AGENTS.md
 ```
 

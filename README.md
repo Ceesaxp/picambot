@@ -97,7 +97,9 @@ make build-all
 make deploy PI_HOST=pi@raspberrypi
 ```
 
-This cross-compiles, copies the binary to `/usr/local/bin/picambot`, and restarts the systemd unit.
+This cross-compiles, installs the binary, systemd units from `docs/`, and audio hook scripts from `scripts/`, then restarts the systemd unit.
+
+To update just the audio hooks, run `make deploy-scripts PI_HOST=pi@raspberrypi`. Use `make check-deploy PI_HOST=pi@raspberrypi` to inspect the deployed hooks and compare script checksums.
 
 ---
 
@@ -118,6 +120,12 @@ Copy the example config and edit the Tailscale IP:
 ```sh
 sudo cp docs/motion.conf.example /etc/motion/motion.conf
 sudo nano /etc/motion/motion.conf   # replace 100.x.x.x with your Tailscale IP
+```
+
+The audio hooks live in `scripts/`. For manual setup, install them at the paths used by the motion configuration:
+
+```sh
+sudo install -m 0755 scripts/picambot-audio-start scripts/picambot-audio-stop /usr/local/bin/
 ```
 
 ### 3. Configure the bot

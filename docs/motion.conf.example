@@ -48,14 +48,14 @@ ffmpeg_video_codec mp4
 
 # Movie filename must use the %Y%m%d%H%M%S-%v pattern so the audio hooks can
 # pair the .wav arecord writes with the .mp4 motion writes for the same event.
-# Changing this breaks audio muxing — see docs/picambot-audio-start.
+# Changing this breaks audio muxing — see scripts/picambot-audio-start.
 movie_filename %Y%m%d%H%M%S-%v
 
 # ── Event hooks ───────────────────────────────────────────────────────────────
 # Audio capture: arecord runs for the duration of each motion event, and the
 # stop hook renames the resulting .wav to share the mp4's basename and pushes
 # the mp4 path onto the FIFO. The bot's Go muxer then produces <basename>.av.mp4.
-# See docs/picambot-audio-{start,stop} for the scripts (deploy to /usr/local/bin).
+# See scripts/picambot-audio-{start,stop} for the scripts (deploy to /usr/local/bin).
 on_event_start /usr/local/bin/picambot-audio-start %Y%m%d%H%M%S-%v
 on_event_end   /usr/local/bin/picambot-audio-stop  %v
 

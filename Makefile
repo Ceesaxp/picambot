@@ -53,7 +53,7 @@ SSH_OPTS ?= -o RemoteCommand=none
 .PHONY: deploy
 deploy: build-pi
 	@test -n "$(PI_HOST)" || (echo "Usage: make deploy PI_HOST=pi@raspberrypi" && exit 1)
-	scp $(SSH_OPTS) $(BINARY)-linux-arm64 docs/picambot.service docs/motion.service docs/picambot-audio-start docs/picambot-audio-stop $(PI_HOST):/tmp/
+	scp $(SSH_OPTS) $(BINARY)-linux-arm64 docs/picambot.service docs/motion.service scripts/picambot-audio-start scripts/picambot-audio-stop $(PI_HOST):/tmp/
 	ssh $(SSH_OPTS) $(PI_HOST) "\
 		sudo install -m 0755 /tmp/$(BINARY)-linux-arm64 /usr/local/bin/$(BINARY) && \
 		sudo install -m 0755 /tmp/picambot-audio-start /usr/local/bin/picambot-audio-start && \
@@ -77,7 +77,7 @@ deploy-bin: build-pi
 .PHONY: deploy-scripts
 deploy-scripts:
 	@test -n "$(PI_HOST)" || (echo "Usage: make deploy-scripts PI_HOST=pi@raspberrypi" && exit 1)
-	scp $(SSH_OPTS) docs/picambot-audio-start docs/picambot-audio-stop $(PI_HOST):/tmp/
+	scp $(SSH_OPTS) scripts/picambot-audio-start scripts/picambot-audio-stop $(PI_HOST):/tmp/
 	ssh $(SSH_OPTS) $(PI_HOST) "\
 		sudo install -m 0755 /tmp/picambot-audio-start /usr/local/bin/picambot-audio-start && \
 		sudo install -m 0755 /tmp/picambot-audio-stop  /usr/local/bin/picambot-audio-stop && \
@@ -92,7 +92,7 @@ check-deploy:
 	@ssh $(SSH_OPTS) $(PI_HOST) "grep -nE '^(on_event_start|on_event_end|on_movie_end|on_picture_save|movie_filename)' /etc/motion/motion.conf"
 	@echo "── script checksums (deployed vs repo) ─────────────────────────────────"
 	@ssh $(SSH_OPTS) $(PI_HOST) "sha256sum /usr/local/bin/picambot-audio-start /usr/local/bin/picambot-audio-stop" | sed 's|/usr/local/bin/|deployed:  |'
-	@shasum -a 256 docs/picambot-audio-start docs/picambot-audio-stop | sed 's|docs/|repo:      |'
+	@shasum -a 256 scripts/picambot-audio-start scripts/picambot-audio-stop | sed 's|scripts/|repo:      |'
 
 .PHONY: clean
 clean:

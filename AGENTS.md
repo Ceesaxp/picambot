@@ -14,6 +14,7 @@ picambot/
 │   ├── motion/        # MotionClient interface + HTTP + systemctl wrapper
 │   ├── watcher/       # EventWatcher (fsnotify) for motion output dir
 │   └── notify/        # Sender — text/photo/video to Telegram
+├── scripts/           # Deployable audio hook scripts
 └── docs/
     └── picambot-spec.md
 ```
